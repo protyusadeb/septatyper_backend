@@ -23,9 +23,6 @@ COPY --chown=app:app septatyper ./septatyper
 COPY --chown=app:app scripts ./scripts
 COPY --chown=app:app --chmod=755 docker/entrypoint.sh /entrypoint.sh
 
-COPY --chown=app:app setup_references.py .
-RUN python setup_references.py
-
 USER app
 EXPOSE 8000
 ENTRYPOINT ["/entrypoint.sh"]
