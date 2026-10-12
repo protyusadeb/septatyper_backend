@@ -1,0 +1,83 @@
+# SeptaTyper production stack: PostgreSQL, one-shot schema migration, FastAPI API, Caddy (HTTPS).
+# Run with:  docker compose up -d --build        (all settings come from .env.production)
+name: septatyper
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env.production          # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]               # never published to the host or the internet
+
+  init:                                # creates / upgrades tables, then exits
+    build: .
+    image: septatyper-api:latest
+    env_file: .env.production
+    command: ["python", "-m", "scripts.migrate_phase5"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks: [internal]
+
+  api:
+    build: .
+    image: septatyper-api:latest
+    restart: unless-stopped
+    env_file: .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+    volumes:
+      - ./references:/app/references:ro    # your gyrA/parC/recN and pmqr/ FASTA files
+      - ./data:/app/data:ro                # Table_S1.xlsx for ingestion runs
+      - submissions:/data/submissions      # uploaded genomes (private, persistent)
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [internal, web]          # web is needed to reach the BV-BRC API
+
+  caddy:                               # automatic HTTPS; the only service reachable from outside
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: .env.production          # API_DOMAIN, ACME_EMAIL
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [web]
+
+networks:
+  internal:
+    internal: true                     # no outbound internet: only the database lives here
+  web: {}
+
+volumes:
+  pgdata:
+  submissions:
+  caddy_data:
+  caddy_config:

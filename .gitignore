@@ -1,0 +1,8 @@
+.env.production
+.env
+references/
+data/
+submissions_data/
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -1,0 +1,10 @@
+tests
+**/__pycache__
+**/*.pyc
+.env*
+*.log
+bvbrc_cache.json
+submissions_data
+references
+data
+.pytest_cache

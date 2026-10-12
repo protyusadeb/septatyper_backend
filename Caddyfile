@@ -1,0 +1,22 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# a little above SEPTATYPER_MAX_UPLOAD_BYTES (60 MB) to leave room for the form fields
+	request_body {
+		max_size 64MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	reverse_proxy api:8000 {
+		health_uri /api/v1/health
+	}
+}
